@@ -1,0 +1,18 @@
+#
+# Simple test for the Spartan storage engine
+#
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  col_a int,
+  col_b varchar(20),
+  col_c int
+) ENGINE=SPARTAN;
+
+SELECT * FROM t1;
+
+RENAME TABLE t1 TO t2;
+
+DROP TABLE t2;

@@ -1,0 +1,255 @@
+=== modified file 'sql/CMakeLists.txt'
+--- sql/CMakeLists.txt	2012-08-07 05:14:58 +0000
++++ sql/CMakeLists.txt	2012-09-16 18:05:38 +0000
+@@ -132,6 +132,8 @@ SET(SQL_SHARED_SOURCES
+   sql_manager.cc
+   sql_optimizer.cc
+   sql_parse.cc
++  sql_dbxp_parse.cc
++  query_tree.cc
+   sql_partition.cc
+   sql_partition_admin.cc
+   sql_planner.cc
+
+=== modified file 'sql/lex.h'
+--- sql/lex.h	2012-09-11 17:35:40 +0000
++++ sql/lex.h	2012-09-16 18:01:41 +0000
+@@ -160,6 +160,11 @@ static SYMBOL symbols[] = {
+   { "DAY_MICROSECOND",	SYM(DAY_MICROSECOND_SYM)},
+   { "DAY_MINUTE",	SYM(DAY_MINUTE_SYM)},
+   { "DAY_SECOND",	SYM(DAY_SECOND_SYM)},
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section identifies the symbols and values for the DBXP token */
++  { "DBXP_SELECT",         SYM(DBXP_SELECT_SYM)},
++/* END DBXP MODIFICATION */
+   { "DEALLOCATE",       SYM(DEALLOCATE_SYM)},     
+   { "DEC",		SYM(DECIMAL_SYM)},
+   { "DECIMAL",		SYM(DECIMAL_SYM)},
+
+=== modified file 'sql/mysqld.cc'
+--- sql/mysqld.cc	2012-09-11 17:35:40 +0000
++++ sql/mysqld.cc	2012-09-16 18:01:41 +0000
+@@ -3699,8 +3699,8 @@ int init_common_variables()
+     the array, excluding the last element - terminator) must match the number
+     of SQLCOM_ constants.
+   */
+-  compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
+-                     SQLCOM_END + 8);
++  //compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
++   //                  SQLCOM_END + 8);
+ #endif
+ 
+   if (get_options(&remaining_argc, &remaining_argv))
+@@ -8671,6 +8671,11 @@ static void set_server_version(void)
+ #endif
+   if (opt_log || opt_slow_log || opt_bin_log)
+     strmov(end, "-log");                        // This may slow down system
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section adds the DBXP version number to the MySQL version number. */
++  strmov(end, "-DBXP 2.0");
++/* END DBXP MODIFICATION */
+ }
+ 
+ 
+
+=== modified file 'sql/sql_cmd.h'
+--- sql/sql_cmd.h	2012-09-11 17:35:40 +0000
++++ sql/sql_cmd.h	2012-09-16 18:01:41 +0000
+@@ -43,6 +43,13 @@ enum enum_sql_command {
+   SQLCOM_SHOW_COLLATIONS, SQLCOM_SHOW_CREATE_DB, SQLCOM_SHOW_TABLE_STATUS,
+   SQLCOM_SHOW_TRIGGERS,
+ 
++/* BEGIN DBXP MODIFICATION */ 
++/* Reason for Modification: */
++/* This section captures the enumerations for the DBXP command tokens */
++  SQLCOM_DBXP_SELECT,   
++  SQLCOM_DBXP_EXPLAIN_SELECT,   
++/* END DBXP MODIFICATION */
++
+   SQLCOM_LOAD,SQLCOM_SET_OPTION,SQLCOM_LOCK_TABLES,SQLCOM_UNLOCK_TABLES,
+   SQLCOM_GRANT,
+   SQLCOM_CHANGE_DB, SQLCOM_CREATE_DB, SQLCOM_DROP_DB, SQLCOM_ALTER_DB,
+
+=== modified file 'sql/sql_parse.cc'
+--- sql/sql_parse.cc	2012-09-11 17:35:40 +0000
++++ sql/sql_parse.cc	2012-09-16 18:01:41 +0000
+@@ -2197,6 +2197,13 @@ err:
+ }
+ 
+ 
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section adds the code to call the new SELECT DBXP command. */
++int DBXP_select_command(THD *thd);
++int DBXP_explain_select_command(THD *thd);
++/* END DBXP MODIFICATION */
++
+ /**
+   Execute command saved in thd and lex->sql_command.
+ 
+@@ -2552,6 +2559,20 @@ mysql_execute_command(THD *thd)
+     res= execute_sqlcom_select(thd, all_tables);
+     break;
+   }
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section adds the code to call the new SELECT DBXP command. */
++  case SQLCOM_DBXP_SELECT:
++  {
++    DBXP_select_command(thd);
++    break;
++  }
++  case SQLCOM_DBXP_EXPLAIN_SELECT:
++  {
++    DBXP_explain_select_command(thd);
++    break;
++  }
++/* END DBXP MODIFICATION */
+ case SQLCOM_PREPARE:
+   {
+     mysql_sql_stmt_prepare(thd);
+
+=== modified file 'sql/sql_yacc.yy'
+--- sql/sql_yacc.yy	2012-09-11 17:35:40 +0000
++++ sql/sql_yacc.yy	2012-09-16 18:01:41 +0000
+@@ -1124,6 +1124,11 @@ bool my_yyoverflow(short **a, YYSTYPE **
+ %token  DAY_MINUTE_SYM
+ %token  DAY_SECOND_SYM
+ %token  DAY_SYM                       /* SQL-2003-R */
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section defines the tokens for the DBXP commands */
++%token  DBXP_SELECT_SYM  
++/* END DBXP MODIFICATION */
+ %token  DEALLOCATE_SYM                /* SQL-2003-R */
+ %token  DECIMAL_NUM
+ %token  DECIMAL_SYM                   /* SQL-2003-R */
+@@ -1801,7 +1806,11 @@ bool my_yyoverflow(short **a, YYSTYPE **
+ %type <boolfunc2creator> comp_op
+ 
+ %type <NONE>
+-        query verb_clause create change select do drop insert replace insert2
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* Add the dbxp_select statement to the NONE type definition. */
++        query verb_clause create change select dbxp_select do drop insert replace insert2
++/* END DBXP MODIFICATION */
+         insert_values update delete truncate rename
+         show describe load alter optimize keycache preload flush
+         reset purge begin commit rollback savepoint release
+@@ -2019,6 +2028,11 @@ statement:
+         | rollback
+         | savepoint
+         | select
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* Add the dbxp_select statement to the list of statements(commands). */
++        | dbxp_select
++/* END DBXP MODIFICATION */
+         | set
+         | signal_stmt
+         | show
+@@ -8514,14 +8528,76 @@ opt_ignore_leaves:
+ */
+ 
+ 
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section captures (parses) the SELECT DBXP statement */
++
++dbxp_select:
++         DBXP_SELECT_SYM DBXP_select_options DBXP_select_item_list
++                 DBXP_select_from
++         {
++             LEX *lex= Lex;
++           lex->sql_command = SQLCOM_DBXP_SELECT;
++         }
++         ;
++
++/* END DBXP MODIFICATION */
++
+ select:
+-          select_init
++         select_init
+           {
+             LEX *lex= Lex;
+             lex->sql_command= SQLCOM_SELECT;
+           }
+         ;
+ 
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section captures (parses) the sub parts of the SELECT DBXP statement */
++
++DBXP_select_options:
++   /* empty */
++   | DISTINCT
++   {
++     Select->options|= SELECT_DISTINCT;
++   }
++  ;
++
++DBXP_select_from:
++  FROM join_table_list DBXP_where_clause {};
++
++DBXP_select_item_list:
++  /* empty */
++  | DBXP_select_item_list ',' select_item
++  | select_item
++  | '*'
++    {
++      THD *thd= YYTHD;
++      Item *item= new (thd->mem_root)
++                    Item_field(&thd->lex->current_select->context,
++                               NULL, NULL, "*");
++      if (item == NULL)
++        MYSQL_YYABORT;
++      if (add_item_to_list(thd, item))
++        MYSQL_YYABORT;
++      (thd->lex->current_select->with_wild)++;
++    };
++
++DBXP_where_clause:
++  /* empty */  { Select->where= 0; }
++   | WHERE expr
++    {
++      SELECT_LEX *select= Select;
++      select->where= $2;
++      if ($2)
++        $2->top_level_item();
++    }
++    ;
++
++
++/* END DBXP MODIFICATION */
++
++
+ /* Need select_init2 for subselects. */
+ select_init:
+           SELECT_SYM select_init2
+@@ -12631,7 +12707,21 @@ wild_and_where:
+ 
+ /* A Oracle compatible synonym for show */
+ describe:
+-          describe_command table_ident
++/* BEGIN DBXP MODIFICATION */
++/* Reason for Modification: */
++/* This section captures (parses) the EXPLAIN (DESCRIBE) DBXP statements */
++
++  describe_command DBXP_SELECT_SYM DBXP_select_options DBXP_select_item_list
++                 DBXP_select_from
++  {
++          LEX *lex= Lex;
++          lex->sql_command = SQLCOM_DBXP_EXPLAIN_SELECT;
++          lex->select_lex.db= 0;
++          lex->verbose= 0;
++  }
++
++/* END DBXP MODIFICATION */
++         | describe_command table_ident
+           {
+             LEX *lex= Lex;
+             mysql_init_select(lex);
+

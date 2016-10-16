@@ -1,0 +1,12 @@
+#
+# Sample test to test the DBXP_SELECT and EXPLAIN DBXP_SELECT commands
+#
+
+# Test 1: Test stubbed DBXP_SELECT command.
+DBXP_SELECT * FROM no_such_table;
+
+# Test 2: Test stubbed Query Tree implementation.
+DBXP_SELECT * FROM customer;
+
+# Test 3: Test stubbed EXPLAIN DBXP_SELECT command.
+EXPLAIN DBXP_SELECT * FROM customer;

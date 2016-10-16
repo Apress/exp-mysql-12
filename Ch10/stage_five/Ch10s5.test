@@ -1,0 +1,45 @@
+#
+# Simple test for the Spartan storage engine
+#
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  col_a int KEY,
+  col_b varchar(20),
+  col_c int
+) ENGINE=SPARTAN;
+
+INSERT INTO t1 VALUES (1, "first test", 24);
+INSERT INTO t1 VALUES (2, "second test", 43);
+INSERT INTO t1 VALUES (9, "fourth test", -2);
+INSERT INTO t1 VALUES (3, 'eighth test', -22);
+INSERT INTO t1 VALUES (4, "tenth test", 11);
+INSERT INTO t1 VALUES (8, "seventh test", 20);
+INSERT INTO t1 VALUES (5, "third test", 100);
+SELECT * FROM t1;
+UPDATE t1 SET col_b = "Updated!" WHERE col_a = 1;
+SELECT * from t1;
+UPDATE t1 SET col_b = "Updated!" WHERE col_a = 3;
+SELECT * from t1;
+UPDATE t1 SET col_b = "Updated!" WHERE col_a = 5;
+SELECT * from t1;
+DELETE FROM t1 WHERE col_a = 1;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE col_a = 3;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE col_a = 5;
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE col_a = 4;
+SELECT * FROM t1 WHERE col_a >= 2 AND col_a <= 5;
+SELECT * FROM t1 WHERE col_a = 22;
+DELETE FROM t1 WHERE col_a = 5;
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE col_a = 5;
+UPDATE t1 SET col_a = 99 WHERE col_a = 8;
+SELECT * FROM t1 WHERE col_a = 8;
+SELECT * FROM t1 WHERE col_a = 99;
+RENAME TABLE t1 TO t2;
+SELECT * FROM t2;
+DROP TABLE t2;

@@ -1,0 +1,125 @@
+=== modified file 'sql/handler.h'
+--- sql/handler.h	2012-06-11 11:30:25 +0000
++++ sql/handler.h	2012-08-14 17:38:22 +0000
+@@ -679,6 +679,7 @@ enum enum_schema_tables
+   SCH_COLLATION_CHARACTER_SET_APPLICABILITY,
+   SCH_COLUMNS,
+   SCH_COLUMN_PRIVILEGES,
++  SCH_DISKUSAGE,
+   SCH_ENGINES,
+   SCH_EVENTS,
+   SCH_FILES,
+
+=== modified file 'sql/sql_parse.cc'
+--- sql/sql_parse.cc	2012-07-05 10:07:26 +0000
++++ sql/sql_parse.cc	2012-08-14 17:38:22 +0000
+@@ -1872,6 +1872,7 @@ int prepare_schema_table(THD *thd, LEX *
+   DBUG_ENTER("prepare_schema_table");
+ 
+   switch (schema_table_idx) {
++  case SCH_DISKUSAGE:
+   case SCH_SCHEMATA:
+ #if defined(DONT_ALLOW_SHOW_COMMANDS)
+     my_message(ER_NOT_ALLOWED_COMMAND,
+
+=== modified file 'sql/sql_show.cc'
+--- sql/sql_show.cc	2012-07-10 14:32:03 +0000
++++ sql/sql_show.cc	2012-08-14 17:38:22 +0000
+@@ -7357,6 +7357,12 @@ int hton_fill_schema_table(THD *thd, TAB
+   DBUG_RETURN(0);
+ }
+ 
++ST_FIELD_INFO disk_usage_fields_info[]=
++{
++  {"DATABASE", 40, MYSQL_TYPE_STRING, 0, 0, "Database"},
++  {"SIZE (Kb)", 21 , MYSQL_TYPE_LONG, 0, 0, "Size (Kb)"},
++  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
++};
+ 
+ ST_FIELD_INFO schema_fields_info[]=
+ {
+@@ -8001,6 +8007,74 @@ ST_FIELD_INFO tablespaces_fields_info[]=
+ /** For creating fields of information_schema.OPTIMIZER_TRACE */
+ extern ST_FIELD_INFO optimizer_trace_info[];
+ 
++int fill_disk_usage(THD *thd, TABLE_LIST *tables, Item *cond)
++{
++  TABLE *table= tables->table;
++  CHARSET_INFO *scs= system_charset_info;
++  List<Item> field_list;
++  List<LEX_STRING> dbs;
++  LEX_STRING *db_name;
++  char *path;
++  MY_DIR *dirp;
++  FILEINFO *file;
++  longlong fsizes = 0;
++  longlong lsizes = 0;
++  DBUG_ENTER("fill_disk_usage");
++
++  find_files_result res = find_files(thd, &dbs, 0, mysql_data_home, 0, 1);
++  if (res != FIND_FILES_OK)
++    DBUG_RETURN(1);
++    
++  List_iterator_fast<LEX_STRING> it_dbs(dbs);
++  path = (char *)my_malloc(PATH_MAX, MYF(MY_ZEROFILL));
++  dirp = my_dir(mysql_data_home, MYF(MY_WANT_STAT));
++  fsizes = 0;
++  for (int i = 0; i < (int)dirp->number_off_files; i++)
++  {
++    file = dirp->dir_entry + i;
++    if (strncasecmp(file->name, "ibdata", 6) == 0)
++      fsizes = fsizes + file->mystat->st_size;
++    else if (strncasecmp(file->name, "ib", 2) == 0)
++      lsizes = lsizes + file->mystat->st_size;
++  }
++
++  /* send InnoDB data to client */
++  table->field[0]->store("InnoDB TableSpace", strlen("InnoDB TableSpace"), scs);
++  table->field[1]->store((longlong)fsizes, TRUE);
++if (schema_table_store_record(thd, table))
++    DBUG_RETURN(1);
++  table->field[0]->store("InnoDB Logs", strlen("InnoDB Logs"), scs);
++  table->field[1]->store((longlong)lsizes, TRUE);
++  if (schema_table_store_record(thd, table))
++    DBUG_RETURN(1);
++
++  /* now send database name and sizes of the databases */
++  while ((db_name = it_dbs++))
++  {
++    fsizes = 0;
++    strcpy(path, mysql_data_home);
++    strcat(path, "/");
++    strcat(path, db_name->str);
++    dirp = my_dir(path, MYF(MY_WANT_STAT));
++    for (int i = 0; i < (int)dirp->number_off_files; i++)
++    {
++      file = dirp->dir_entry + i;
++      fsizes = fsizes + file->mystat->st_size;
++    }
++    restore_record(table, s->default_values);
++
++    table->field[0]->store(db_name->str, db_name->length, scs);
++    table->field[1]->store((longlong)fsizes, TRUE);
++    if (schema_table_store_record(thd, table))
++      DBUG_RETURN(1);
++  }
++
++  /* free memory */
++  my_free(path);
++  DBUG_RETURN(0);
++}
++
++
+ /*
+   Description of ST_FIELD_INFO in table.h
+ 
+@@ -8023,6 +8097,8 @@ ST_SCHEMA_TABLE schema_tables[]=
+    fill_schema_column_privileges, 0, 0, -1, -1, 0, 0},
+   {"ENGINES", engines_fields_info, create_schema_table,
+    fill_schema_engines, make_old_format, 0, -1, -1, 0, 0},
++  {"DISKUSAGE", disk_usage_fields_info, create_schema_table,
++   fill_disk_usage, make_old_format, 0, -1, -1, 0, 0},
+ #ifdef HAVE_EVENT_SCHEDULER
+   {"EVENTS", events_fields_info, create_schema_table,
+    Events::fill_schema_events, make_old_format, 0, -1, -1, 0, 0},
+

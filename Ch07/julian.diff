@@ -1,0 +1,88 @@
+=== modified file 'sql/udf_example.cc'
+--- sql/udf_example.cc	2011-12-09 21:08:37 +0000
++++ sql/udf_example.cc	2012-08-13 23:45:19 +0000
+@@ -166,6 +166,9 @@ double avgcost( UDF_INIT* initid, UDF_AR
+ my_bool is_const_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
+ char *is_const(UDF_INIT *initid, UDF_ARGS *args, char *result, unsigned long
+                *length, char *is_null, char *error);
++my_bool julian_init(UDF_INIT *initid, UDF_ARGS *args, char *message);
++longlong julian(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error);
++void julian_deinit(UDF_INIT *initid);
+ C_MODE_END;
+ 
+ /*************************************************************************
+@@ -1142,6 +1145,61 @@ char * check_const_len(UDF_INIT *initid,
+   return result;
+ }
+ 
++extern "C" my_bool julian_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
++{
++  if (args->arg_count != 3) /* if there are not three arguments */
++  {
++    strcpy(message, "Wrong number of arguments: JULIAN() requires 3 arguments.");
++    return 1;
++  }
++  if ((args->arg_type[0] != INT_RESULT) ||
++      (args->arg_type[1] != INT_RESULT) ||
++      (args->arg_type[2] != INT_RESULT))
++  {
++    strcpy(message, "Wrong type of arguments: JULIAN() requires 3 integers.");
++    return 1;
++  }
++  return 0;
++}
++
++extern "C" void julian_deinit(UDF_INIT *initid)
++{
++}
++
++
++extern "C" longlong julian(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error)
++{
++  longlong jdate = 0;
++  static int DAYS_IN_MONTH[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
++  int month = 0;
++  int day = 0;
++  int year = 0;
++  int i;
++
++  /* copy memory from the arguments */
++  memcpy(&month, args->args[0], args->lengths[0]);
++  memcpy(&day, args->args[1], args->lengths[1]);
++  memcpy(&year, args->args[2], args->lengths[2]);
++
++  /* add the days in the month for each prior month */
++  for (i = 0; i < month - 1; i++)
++    jdate += DAYS_IN_MONTH[i];
++
++  /* add the day of this month */
++  jdate += day;
++
++  /* find the year */
++  if (((year % 100) != 0) && ((year % 4) == 0))
++    jdate++;  /*leap year!*/
++
++  /* shift day of year to left */
++  jdate *= 10000;
++
++  /* add the year */
++  jdate += year;
++  return jdate;
++}
++
+ 
+ C_MODE_START;
+ my_bool  my_median_init  (UDF_INIT *initid, UDF_ARGS *args, char *message);
+
+=== modified file 'sql/udf_example.def'
+--- sql/udf_example.def	2011-10-11 04:27:52 +0000
++++ sql/udf_example.def	2012-08-13 22:51:32 +0000
+@@ -30,3 +30,6 @@ EXPORTS
+   my_median_add
+   my_median_clear
+   my_median
++  julian_init
++  julian_deinit
++  julian
+\ No newline at end of file
+

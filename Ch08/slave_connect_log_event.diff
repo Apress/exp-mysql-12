@@ -1,0 +1,420 @@
+=== modified file 'sql/binlog.cc'
+--- sql/binlog.cc	2012-07-10 16:57:53 +0000
++++ sql/binlog.cc	2012-10-08 15:35:46 +0000
+@@ -5154,6 +5154,31 @@ int MYSQL_BIN_LOG::do_write_cache(IO_CAC
+   DBUG_RETURN(0); // All OK
+ }
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add new method definition to write slave connect event to binlog */
++bool MYSQL_BIN_LOG::write_slave_connect(THD *thd, char *host, int port, int server_id)
++{
++  char buffer[255];
++  binlog_cache_data* cache_data= NULL;
++  DBUG_ENTER("MYSQL_BIN_LOG::write_slave_connect");
++
++  /* Record slave connection in the binary log */
++  sprintf(buffer, "Host: %s Port: %d Server_Id: %d", host, port, server_id);
++  Slave_connect_log_event ev(thd, buffer, (int)strlen(buffer));
++  
++  if (thd->binlog_setup_trx_data())
++    DBUG_RETURN(1);
++  cache_data= &thd_get_cache_mngr(thd)->trx_cache;
++  if (cache_data->write_event(thd, &ev))
++    DBUG_RETURN(1);
++  cache_data->finalize(thd, NULL);
++  ordered_commit(thd, true);
++  
++  DBUG_RETURN(0);
++}
++/* END CAB MODIFICATION */
++
+ /**
+   Writes an incident event to the binary log.
+ 
+
+=== modified file 'sql/binlog.h'
+--- sql/binlog.h	2012-06-25 09:28:20 +0000
++++ sql/binlog.h	2012-10-08 15:35:46 +0000
+@@ -541,7 +541,12 @@ public:
+                       bool do_flush_and_sync= true);
+   bool write_incident(Incident_log_event *ev, bool need_lock_log,
+                       bool do_flush_and_sync= true);
+-
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Method declaration for writing the slave connect event to the binlog */
++  bool write_slave_connect(THD *thd, char *host, int port, int server_id);
++/* END CAB MODIFICATION */
++  
+   void start_union_events(THD *thd, query_id_t query_id_param);
+   void stop_union_events(THD *thd);
+   bool is_query_in_union(THD *thd, query_id_t query_id_param);
+
+=== modified file 'sql/log_event.cc'
+--- sql/log_event.cc	2012-07-10 11:07:55 +0000
++++ sql/log_event.cc	2012-10-08 15:35:46 +0000
+@@ -668,6 +668,11 @@ const char* Log_event::get_type_str(Log_
+   case INCIDENT_EVENT: return "Incident";
+   case IGNORABLE_LOG_EVENT: return "Ignorable";
+   case ROWS_QUERY_LOG_EVENT: return "Rows_query";
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add case to return name of new log event */
++  case SLAVE_CONNECT_LOG_EVENT: return "Slave_connect";
++/* END CAB MODIFICATION */
+   case WRITE_ROWS_EVENT: return "Write_rows";
+   case UPDATE_ROWS_EVENT: return "Update_rows";
+   case DELETE_ROWS_EVENT: return "Delete_rows";
+@@ -1579,6 +1584,13 @@ Log_event* Log_event::read_log_event(con
+     case ROWS_QUERY_LOG_EVENT:
+       ev= new Rows_query_log_event(buf, event_len, description_event);
+       break;
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add case to create new log event */
++    case SLAVE_CONNECT_LOG_EVENT:
++      ev= new Slave_connect_log_event(buf, event_len, description_event);
++      break;
++/* END CAB MODIFICATION */
+     case GTID_LOG_EVENT:
+     case ANONYMOUS_GTID_LOG_EVENT:
+       ev= new Gtid_log_event(buf, event_len, description_event);
+@@ -5183,6 +5195,11 @@ Format_description_log_event(uint8 binlo
+       post_header_len[HEARTBEAT_LOG_EVENT-1]= 0;
+       post_header_len[IGNORABLE_LOG_EVENT-1]= IGNORABLE_HEADER_LEN;
+       post_header_len[ROWS_QUERY_LOG_EVENT-1]= IGNORABLE_HEADER_LEN;
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Return header length for the new log event */
++      post_header_len[SLAVE_CONNECT_LOG_EVENT-1]= IGNORABLE_HEADER_LEN;
++/* END CAB MODIFICATION */
+       post_header_len[WRITE_ROWS_EVENT-1]=  ROWS_HEADER_LEN_V2;
+       post_header_len[UPDATE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
+       post_header_len[DELETE_ROWS_EVENT-1]= ROWS_HEADER_LEN_V2;
+@@ -12847,6 +12864,103 @@ int Rows_query_log_event::do_apply_event
+ #endif
+ 
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Class method definitions for the new log event */
++Slave_connect_log_event::Slave_connect_log_event(const char *buf, uint event_len,
++                                           const Format_description_log_event *descr_event)
++  : Log_event(buf, descr_event)
++{
++  DBUG_ENTER("Slave_connect_log_event::Slave_connect_log_event");
++  uint8 const common_header_len= descr_event->common_header_len;
++  uint8 const post_header_len=
++    descr_event->post_header_len[SLAVE_CONNECT_LOG_EVENT-1];
++
++  DBUG_PRINT("info",("event_len: %u; common_header_len: %d; post_header_len: %d",
++                     event_len, common_header_len, post_header_len));
++
++  /*
++   m_slave_connect length is stored using only one byte, but that length is
++   ignored and the complete query is read.
++  */
++  int offset= common_header_len + post_header_len + 1;
++  int len= event_len - offset;
++  if (!(m_slave_connect= (char*) my_malloc(len+1, MYF(MY_WME))))
++    return;
++  strmake(m_slave_connect, buf + offset, len);
++  DBUG_PRINT("info", ("m_slave_connect: %s", m_slave_connect));
++  DBUG_VOID_RETURN;
++}
++
++Slave_connect_log_event::~Slave_connect_log_event()
++{
++  my_free(m_slave_connect);
++}
++
++#ifndef MYSQL_CLIENT
++int Slave_connect_log_event::pack_info(Protocol *protocol)
++{
++  char *buf;
++  size_t bytes;
++  ulong len= sizeof("# SLAVE_CONNECT = ") + (ulong) strlen(m_slave_connect);
++  if (!(buf= (char*) my_malloc(len, MYF(MY_WME))))
++    return 1;
++  bytes= my_snprintf(buf, len, "# SLAVE_CONNECT = %s", m_slave_connect);
++  protocol->store(buf, bytes, &my_charset_bin);
++  my_free(buf);
++  return 0;
++}
++#endif
++
++
++#ifdef MYSQL_CLIENT
++void
++Slave_connect_log_event::print(FILE *file,
++                            PRINT_EVENT_INFO *print_event_info)
++{
++  IO_CACHE *const head= &print_event_info->head_cache;
++  IO_CACHE *const body= &print_event_info->body_cache;
++  char *slave_connect_copy= NULL;
++  if (!(slave_connect_copy= my_strdup(m_slave_connect, MYF(MY_WME))))
++    return;
++
++  my_b_printf(head, "# Slave Connect:\n# %s\n", slave_connect_copy);
++  print_header(head, print_event_info, FALSE);
++  my_free(slave_connect_copy);
++  print_base64(body, print_event_info, true);
++}
++#endif
++
++bool
++Slave_connect_log_event::write_data_body(IO_CACHE *file)
++{
++  DBUG_ENTER("Slave_connect_log_event::write_data_body");
++  /*
++   m_slave_connect length will be stored using only one byte, but on read
++   that length will be ignored and the complete query will be read.
++  */
++  DBUG_RETURN(write_str_at_most_255_bytes(file, m_slave_connect,
++              (uint) strlen(m_slave_connect)));
++}
++
++#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
++int Slave_connect_log_event::do_apply_event(Relay_log_info const *rli)
++{
++  DBUG_ENTER("Slave_connect_log_event::do_apply_event");
++  DBUG_ASSERT(rli->info_thd == thd);
++  /* Set query for writing Slave_connect log event into binlog later.*/
++  thd->set_query(m_slave_connect, (uint32) strlen(m_slave_connect));
++
++  DBUG_ASSERT(rli->slave_connect_ev == NULL);
++
++  const_cast<Relay_log_info*>(rli)->slave_connect_ev= this;
++
++  DBUG_RETURN(0);
++}
++/* END CAB MODIFICATION */
++#endif
++
++
+ const char *Gtid_log_event::SET_STRING_PREFIX= "SET @@SESSION.GTID_NEXT= '";
+ 
+ 
+
+=== modified file 'sql/log_event.h'
+--- sql/log_event.h	2012-07-06 12:57:28 +0000
++++ sql/log_event.h	2012-10-08 15:35:46 +0000
+@@ -715,6 +715,11 @@ enum Log_event_type
+     Existing events (except ENUM_END_EVENT) should never change their numbers
+   */
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add new log event enumeration */
++  SLAVE_CONNECT_LOG_EVENT= 36,
++/* END CAB MODIFICATION */
+   ENUM_END_EVENT /* end marker */
+ };
+ 
+@@ -4688,6 +4693,58 @@ private:
+ };
+ 
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add new log event class declaration */
++class Slave_connect_log_event : public Log_event {
++public:
++#ifndef MYSQL_CLIENT
++  Slave_connect_log_event(THD *thd_arg, const char * query, ulong query_len)
++      : Log_event(thd_arg, LOG_EVENT_IGNORABLE_F, 
++                  Log_event::EVENT_STMT_CACHE,
++                  Log_event::EVENT_IMMEDIATE_LOGGING)
++  {
++    DBUG_ENTER("Slave_connect_log_event::Slave_connect_log_event");
++    if (!(m_slave_connect= (char*) my_malloc(query_len + 1, MYF(MY_WME))))
++      return;
++    my_snprintf(m_slave_connect, query_len + 1, "%s", query);
++    DBUG_PRINT("enter", ("%s", m_slave_connect));
++    DBUG_VOID_RETURN;
++  }
++#endif
++
++#ifndef MYSQL_CLIENT
++  int pack_info(Protocol*);
++#endif
++
++  Slave_connect_log_event(const char *buf, uint event_len,
++                          const Format_description_log_event *descr_event);
++
++  virtual ~Slave_connect_log_event();
++  bool is_valid() const { return 1; }
++
++#ifdef MYSQL_CLIENT
++  virtual void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
++#endif
++  virtual bool write_data_body(IO_CACHE *file);
++
++  virtual Log_event_type get_type_code() { return SLAVE_CONNECT_LOG_EVENT; }
++
++  virtual int get_data_size()
++  {
++    return IGNORABLE_HEADER_LEN + 1 + (uint) strlen(m_slave_connect);
++  }
++#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
++  virtual int do_apply_event(Relay_log_info const *rli);
++#endif
++
++private:
++
++  char *m_slave_connect;
++};
++/* END CAB MODIFICATION */
++
++
+ 
+ static inline bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache,
+                                                        FILE *file)
+
+=== modified file 'sql/rpl_master.cc'
+--- sql/rpl_master.cc	2012-06-25 09:28:20 +0000
++++ sql/rpl_master.cc	2012-10-08 15:35:46 +0000
+@@ -147,6 +147,16 @@ int register_slave(THD* thd, uchar* pack
+   si->thd= thd;
+ 
+   mysql_mutex_lock(&LOCK_slave_list);
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Write a new Slave_connect_log_event to binary log when slave connects */
++  /* If this is a new slave registration, log the slave connect message. */
++  if (my_hash_search(&slave_list, (uchar*)&thd->server_id, 4) == NULL)
++  {
++    DBUG_PRINT("info", ("Logging slave connect for host: %s", si->host));
++    mysql_bin_log.write_slave_connect(thd, si->host, si->port, si->server_id);
++  }
++/* END CAB MODIFICATION */
+   unregister_slave(thd, false, false/*need_lock_slave_list=false*/);
+   res= my_hash_insert(&slave_list, (uchar*) si);
+   mysql_mutex_unlock(&LOCK_slave_list);
+
+=== modified file 'sql/rpl_rli.cc'
+--- sql/rpl_rli.cc	2012-06-28 12:25:05 +0000
++++ sql/rpl_rli.cc	2012-10-08 15:35:46 +0000
+@@ -87,7 +87,11 @@ Relay_log_info::Relay_log_info(bool is_s
+    retried_trans(0),
+    tables_to_lock(0), tables_to_lock_count(0),
+    rows_query_ev(NULL), last_event_start_time(0), deferred_events(NULL),
+-   slave_parallel_workers(0),
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Initialize the slave_connect_ev variable */
++   slave_connect_ev(NULL), slave_parallel_workers(0),
++/* END CAB MODIFICATION */
+    recovery_parallel_workers(0), checkpoint_seqno(0),
+    checkpoint_group(opt_mts_checkpoint_group), 
+    recovery_groups_inited(false), mts_recovery_group_cnt(0),
+@@ -1442,6 +1446,16 @@ void Relay_log_info::cleanup_context(THD
+     rows_query_ev= NULL;
+     info_thd->set_query(NULL, 0);
+   }
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Destroy the Slave_connect_log_event instance */
++  if (slave_connect_ev)
++  {
++    delete slave_connect_ev;
++    slave_connect_ev= NULL;
++    info_thd->set_query(NULL, 0);
++  }
++/* END CAB MODIFICATION */
+   m_table_map.clear_tables();
+   slave_close_thread_tables(thd);
+   if (error)
+
+=== modified file 'sql/rpl_rli.h'
+--- sql/rpl_rli.h	2012-06-25 09:28:20 +0000
++++ sql/rpl_rli.h	2012-10-08 15:35:46 +0000
+@@ -480,6 +480,13 @@ public:
+   */
+   bool deferred_events_collecting;
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add a new variable for a Slave_connect_log_event instance */
++
++  Slave_connect_log_event* slave_connect_ev;
++
++/* END CAB MODIFICATION */
+   /*****************************************************************************
+     WL#5569 MTS
+ 
+
+=== modified file 'sql/rpl_rli_pdb.cc'
+--- sql/rpl_rli_pdb.cc	2012-07-03 14:48:49 +0000
++++ sql/rpl_rli_pdb.cc	2012-10-08 15:35:46 +0000
+@@ -1906,7 +1906,12 @@ err:
+   }
+ 
+   // todo: simulate delay in delete
+-  if (ev && ev->worker && ev->get_type_code() != ROWS_QUERY_LOG_EVENT)
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Destroy the Slave_connect_log_event instance */
++  if (ev && ev->worker && ev->get_type_code() != ROWS_QUERY_LOG_EVENT &&
++      ev->get_type_code() != SLAVE_CONNECT_LOG_EVENT)
++/* END CAB MODIFICATION */
+   {
+     delete ev;
+   }
+
+=== modified file 'sql/rpl_slave.cc'
+--- sql/rpl_slave.cc	2012-07-03 15:54:08 +0000
++++ sql/rpl_slave.cc	2012-10-08 15:35:46 +0000
+@@ -3653,8 +3653,13 @@ static int exec_relay_log_event(THD* thd
+         ROWS_QUERY_LOG_EVENT is destroyed at the end of the current statement
+         clean-up routine.
+       */
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Exclude the Slave_connect_log_event from destruction */
+       if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
+-          ev->get_type_code() != ROWS_QUERY_LOG_EVENT)
++          ev->get_type_code() != ROWS_QUERY_LOG_EVENT &&
++          ev->get_type_code() != SLAVE_CONNECT_LOG_EVENT)
++/* END CAB MODIFICATION */
+       {
+         DBUG_PRINT("info", ("Deleting the event after it has been executed"));
+         delete ev;
+
+=== modified file 'sql/sql_binlog.cc'
+--- sql/sql_binlog.cc	2012-05-07 08:53:28 +0000
++++ sql/sql_binlog.cc	2012-10-08 15:35:46 +0000
+@@ -291,8 +291,13 @@ void mysql_client_binlog_statement(THD*
+         ROWS_QUERY_LOG_EVENT if present in rli is deleted at the end
+         of the event.
+       */
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Exclude the Slave_connect_log_event from destruction */
+       if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
+-          ev->get_type_code() != ROWS_QUERY_LOG_EVENT)
++          ev->get_type_code() != ROWS_QUERY_LOG_EVENT &&
++          ev->get_type_code() != SLAVE_CONNECT_LOG_EVENT)
++/* END CAB MODIFICATION */
+       {
+         delete ev;
+         ev= NULL;
+@@ -320,6 +325,15 @@ end:
+       delete rli->rows_query_ev;
+       rli->rows_query_ev= NULL;
+     }
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Destroy the Slave_connect_log_event instance if there is an error */
++    if ((error || err) && rli->slave_connect_ev)
++    {
++      delete rli->slave_connect_ev;
++      rli->slave_connect_ev= NULL;
++    }
++/* END CAB MODIFICATION */
+     rli->slave_close_thread_tables(thd);
+   }
+   thd->variables.option_bits= thd_options;
+

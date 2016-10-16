@@ -1,0 +1,38 @@
+#
+# Sample test to test the DBXP_SELECT execution
+#
+
+--source include/ch14.sql
+
+# Test 1: 
+DBXP_SELECT first_name, last_name, sex, id FROM staff;
+
+# Test 2: 
+DBXP_SELECT id FROM staff;
+
+# Test 3: 
+DBXP_SELECT dir_name FROM directorate;
+
+# Test 4a: 
+DBXP_SELECT id, dir_name FROM staff 
+JOIN directorate ON staff.mgr_id = directorate.dir_head_id;
+
+# Test 4b: 
+DBXP_SELECT id, dir_name FROM staff, directorate  
+WHERE staff.mgr_id = directorate.dir_head_id;
+
+# Test 5: 
+DBXP_SELECT * FROM staff WHERE staff.id = '123456789';
+
+# Test 6: 
+DBXP_SELECT first_name, last_name FROM staff join directorate ON staff.mgr_id = directorate.dir_head_id
+WHERE directorate.dir_code = 'N41';
+
+# Test 7: 
+DBXP_SELECT * FROM directorate JOIN building ON directorate.dir_code = building.dir_code;
+
+# Test 8: 
+DBXP_SELECT directorate.dir_code, dir_name, building, dir_head_id 
+FROM directorate JOIN building ON directorate.dir_code = building.dir_code;
+
+DROP DATABASE expert_mysql;

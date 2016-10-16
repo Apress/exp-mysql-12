@@ -1,0 +1,116 @@
+=== modified file 'sql/lex.h'
+--- sql/lex.h	2012-05-03 08:35:47 +0000
++++ sql/lex.h	2012-08-25 17:48:07 +0000
+@@ -519,6 +519,11 @@ static SYMBOL symbols[] = {
+   { "SIGNED",		SYM(SIGNED_SYM)},
+   { "SIMPLE",		SYM(SIMPLE_SYM)},
+   { "SLAVE",            SYM(SLAVE)},
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add SLAVES keyword */
++  { "SLAVES",           SYM(SLAVES)},
++/* END CAB MODIFICATION */
+   { "SLOW",             SYM(SLOW)},
+   { "SNAPSHOT",         SYM(SNAPSHOT_SYM)},
+   { "SMALLINT",		SYM(SMALLINT)},
+
+=== modified file 'sql/sql_cmd.h'
+--- sql/sql_cmd.h	2012-05-28 09:09:33 +0000
++++ sql/sql_cmd.h	2012-08-25 17:48:07 +0000
+@@ -53,7 +53,11 @@ enum enum_sql_command {
+   SQLCOM_FLUSH, SQLCOM_KILL, SQLCOM_ANALYZE,
+   SQLCOM_ROLLBACK, SQLCOM_ROLLBACK_TO_SAVEPOINT,
+   SQLCOM_COMMIT, SQLCOM_SAVEPOINT, SQLCOM_RELEASE_SAVEPOINT,
+-  SQLCOM_SLAVE_START, SQLCOM_SLAVE_STOP,
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add SQLCOM_STOP_SLAVES enum */
++  SQLCOM_SLAVE_START, SQLCOM_SLAVE_STOP, SQLCOM_STOP_SLAVES,
++/* END CAB MODIFICATION */
+   SQLCOM_BEGIN, SQLCOM_CHANGE_MASTER,
+   SQLCOM_RENAME_TABLE,  
+   SQLCOM_RESET, SQLCOM_PURGE, SQLCOM_PURGE_BEFORE, SQLCOM_SHOW_BINLOGS,
+
+=== modified file 'sql/sql_parse.cc'
+--- sql/sql_parse.cc	2012-07-05 10:07:26 +0000
++++ sql/sql_parse.cc	2012-08-25 17:48:07 +0000
+@@ -3054,6 +3054,18 @@ end_with_restore_list:
+     mysql_mutex_unlock(&LOCK_active_mi);
+     break;
+   }
++  
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add case statement for STOP ALL SLAVES command */
++  case SQLCOM_STOP_SLAVES:
++  {
++     if (!lex->no_write_to_binlog)
++       res= write_bin_log(thd, TRUE, "STOP SLAVE IO_THREAD", 20);
++    break;
++  }
++/* END CAB MODIFICATION */
++  
+ #endif /* HAVE_REPLICATION */
+ 
+   case SQLCOM_RENAME_TABLE:
+
+=== modified file 'sql/sql_yacc.yy'
+--- sql/sql_yacc.yy	2012-07-13 08:50:05 +0000
++++ sql/sql_yacc.yy	2012-08-25 18:10:24 +0000
+@@ -1497,6 +1497,11 @@ bool my_yyoverflow(short **a, YYSTYPE **
+ %token  SIGNED_SYM
+ %token  SIMPLE_SYM                    /* SQL-2003-N */
+ %token  SLAVE
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add SLAVES token */
++%token  SLAVES
++/* END CAB MODIFICATION */
+ %token  SLOW
+ %token  SMALLINT                      /* SQL-2003-R */
+ %token  SNAPSHOT_SYM
+@@ -1808,7 +1813,11 @@ bool my_yyoverflow(short **a, YYSTYPE **
+         show describe load alter optimize keycache preload flush
+         reset purge begin commit rollback savepoint release
+         slave master_def master_defs master_file_def slave_until_opts
+-        repair analyze check start checksum
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add stop to list of NONE types */
++        repair analyze check start stop checksum
++/* END CAB MODIFICATION */
+         field_list field_list_item field_spec kill column_def key_def
+         keycache_list keycache_list_or_parts assign_to_keycache
+         assign_to_keycache_parts
+@@ -2026,6 +2035,11 @@ statement:
+         | show
+         | slave
+         | start
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add stop to list of statement targets */
++        | stop
++/* END CAB MODIFICATION */
+         | truncate
+         | uninstall
+         | unlock
+@@ -8013,6 +8027,18 @@ slave:
+           }
+         ;
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add rule for STOP ALL SLAVES command */
++stop:
++          STOP_SYM ALL SLAVES
++          {
++            LEX *lex=Lex;
++            lex->sql_command = SQLCOM_STOP_SLAVES;
++          }
++          ;
++/* END CAB MODIFICATION */
++
+ start:
+           START_SYM TRANSACTION_SYM opt_start_transaction_option_list
+           {
+

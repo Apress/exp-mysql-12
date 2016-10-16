@@ -1,0 +1,647 @@
+=============================================================================
+Listing 10-8:
+=============================================================================
+
+mysql> CREATE TABLE t1 (
+    ->   col_a int,
+    ->   col_b varchar(20),
+    ->   col_c int
+    -> ) ENGINE=SPARTAN;
+ERROR 1286 (42000): Unknown storage engine 'SPARTAN'
+mysql> 
+mysql> SELECT * FROM t1;
+ERROR 1146 (42S02): Table 'test.t1' doesn't exist
+mysql> 
+mysql> DROP TABLE t1;
+ERROR 1051 (42S02): Unknown table 'test.t1'
+
+=============================================================================
+Listing 10-9:
+=============================================================================
+
+mysql> SHOW PLUGINS \G
+*************************** 1. row ***************************
+   Name: binlog
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 2. row ***************************
+   Name: mysql_native_password
+ Status: ACTIVE
+   Type: AUTHENTICATION
+Library: NULL
+License: GPL
+*************************** 3. row ***************************
+   Name: mysql_old_password
+ Status: ACTIVE
+   Type: AUTHENTICATION
+Library: NULL
+License: GPL
+*************************** 4. row ***************************
+   Name: sha256_password
+ Status: ACTIVE
+   Type: AUTHENTICATION
+Library: NULL
+License: GPL
+*************************** 5. row ***************************
+   Name: CSV
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 6. row ***************************
+   Name: MRG_MYISAM
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 7. row ***************************
+   Name: MEMORY
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 8. row ***************************
+   Name: MyISAM
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 9. row ***************************
+   Name: BLACKHOLE
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 10. row ***************************
+   Name: InnoDB
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+
+...
+
+*************************** 43. row ***************************
+   Name: partition
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+43 rows in set (0.00 sec)
+
+mysql> INSTALL PLUGIN spartan SONAME 'ha_spartan.so';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> SHOW PLUGINS \G
+*************************** 1. row ***************************
+   Name: binlog
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 2. row ***************************
+   Name: mysql_native_password
+ Status: ACTIVE
+   Type: AUTHENTICATION
+Library: NULL
+License: GPL
+*************************** 3. row ***************************
+   Name: mysql_old_password
+ Status: ACTIVE
+   Type: AUTHENTICATION
+Library: NULL
+License: GPL
+*************************** 4. row ***************************
+   Name: sha256_password
+ Status: ACTIVE
+   Type: AUTHENTICATION
+Library: NULL
+License: GPL
+*************************** 5. row ***************************
+   Name: CSV
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 6. row ***************************
+   Name: MRG_MYISAM
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 7. row ***************************
+   Name: MEMORY
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 8. row ***************************
+   Name: MyISAM
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 9. row ***************************
+   Name: BLACKHOLE
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 10. row ***************************
+   Name: InnoDB
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+
+...
+
+*************************** 43. row ***************************
+   Name: partition
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: NULL
+License: GPL
+*************************** 44. row ***************************
+   Name: Spartan
+ Status: ACTIVE
+   Type: STORAGE ENGINE
+Library: ha_spartan.so
+License: GPL
+44 rows in set (0.00 sec)
+
+mysql> 
+
+mysql> use test;
+Database changed
+mysql> CREATE TABLE t1 (col_a int, col_b varchar(20), col_c int) ENGINE=SPARTAN;
+Query OK, 0 rows affected (0.02 sec)
+
+mysql> SHOW CREATE TABLE t1 \G
+*************************** 1. row ***************************
+       Table: t1
+Create Table: CREATE TABLE `t1` (
+  `col_a` int(11) DEFAULT NULL,
+  `col_b` varchar(20) DEFAULT NULL,
+  `col_c` int(11) DEFAULT NULL
+) ENGINE=SPARTAN DEFAULT CHARSET=latin1
+1 row in set (0.00 sec)
+
+mysql> DROP TABLE t1;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> 
+
+=============================================================================
+Listing 10-19:
+=============================================================================
+
+mysql> INSTALL PLUGIN spartan SONAME 'ha_spartan.so';
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> use test;
+Database changed
+mysql> CREATE TABLE t1 (col_a int, col_b varchar(20), col_c int) ENGINE=SPARTAN;
+Query OK, 0 rows affected (0.02 sec)
+
+mysql> SELECT * FROM t1;
+Empty set (0.00 sec)
+
+mysql> RENAME TABLE t1 to t2;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> SELECT * FROM t2;
+Empty set (0.00 sec)
+
+mysql> DROP TABLE t2;
+Query OK, 0 rows affected (0.00 sec)
+
+
+=============================================================================
+Listing 10-:   Stage 3
+=============================================================================
+
+mysql> INSTALL PLUGIN spartan SONAME 'ha_spartan.so';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> use test;
+Database changed
+mysql> CREATE TABLE t1 (col_a int, col_b varchar(20), col_c int) ENGINE=SPARTAN;
+Query OK, 0 rows affected (0.03 sec)
+
+mysql> SELECT * FROM t2;
+ERROR 1146 (42S02): Table 'test.t2' doesn't exist
+mysql> SELECT * FROM t1;
+Empty set (0.00 sec)
+
+mysql> SELECT * FROM t1;
+Empty set (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(1, "first test", 24);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(4, "second test", 43);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(3, "third test", -2);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     1 | first test  |    24 |
+|     4 | second test |    43 |
+|     3 | third test  |    -2 |
++-------+-------------+-------+
+3 rows in set (0.00 sec)
+
+mysql> RENAME TABLE t1 to t2;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> SELECT * FROM t2;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     1 | first test  |    24 |
+|     4 | second test |    43 |
+|     3 | third test  |    -2 |
++-------+-------------+-------+
+3 rows in set (0.00 sec)
+
+mysql> 
+
+=============================================================================
+Listing 10-32:   Stage 4
+=============================================================================
+
+mysql> use test;
+Database changed
+mysql> 
+mysql> CREATE TABLE t1 (
+    ->   col_a int,
+    ->   col_b varchar(20),
+    ->   col_c int
+    -> ) ENGINE=SPARTAN;
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> 
+mysql> SELECT * FROM t1;
+Empty set (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(1, "first test", 24);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(4, "second test", 43);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(3, "fourth test", -2);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(4, "tenth test", 11);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(1, "seventh test", 20);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES(5, "third test", 100);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     1 | first test   |    24 |
+|     4 | second test  |    43 |
+|     3 | fourth test  |    -2 |
+|     4 | tenth test   |    11 |
+|     1 | seventh test |    20 |
+|     5 | third test   |   100 |
++-------+--------------+-------+
+6 rows in set (0.00 sec)
+
+mysql> UPDATE t1 SET col_b = "Updated!" WHERE col_a = 1;
+Query OK, 2 rows affected (0.00 sec)
+Rows matched: 2  Changed: 2  Warnings: 0
+
+mysql> SELECT * from t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     1 | Updated!    |    24 |
+|     4 | second test |    43 |
+|     3 | fourth test |    -2 |
+|     4 | tenth test  |    11 |
+|     1 | Updated!    |    20 |
+|     5 | third test  |   100 |
++-------+-------------+-------+
+6 rows in set (0.00 sec)
+
+mysql> UPDATE t1 SET col_b = "Updated!" WHERE col_a = 3;
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+mysql> SELECT * from t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     1 | Updated!    |    24 |
+|     4 | second test |    43 |
+|     3 | Updated!    |    -2 |
+|     4 | tenth test  |    11 |
+|     1 | Updated!    |    20 |
+|     5 | third test  |   100 |
++-------+-------------+-------+
+6 rows in set (0.01 sec)
+
+mysql> UPDATE t1 SET col_b = "Updated!" WHERE col_a = 5;
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+mysql> SELECT * from t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     1 | Updated!    |    24 |
+|     4 | second test |    43 |
+|     3 | Updated!    |    -2 |
+|     4 | tenth test  |    11 |
+|     1 | Updated!    |    20 |
+|     5 | Updated!    |   100 |
++-------+-------------+-------+
+6 rows in set (0.00 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 1;
+Query OK, 2 rows affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     4 | second test |    43 |
+|     3 | Updated!    |    -2 |
+|     4 | tenth test  |    11 |
+|     5 | Updated!    |   100 |
++-------+-------------+-------+
+4 rows in set (0.00 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 3;
+Query OK, 1 row affected (0.01 sec)
+
+mysql> SELECT * FROM t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     4 | second test |    43 |
+|     4 | tenth test  |    11 |
+|     5 | Updated!    |   100 |
++-------+-------------+-------+
+3 rows in set (0.00 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 5;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     4 | second test |    43 |
+|     4 | tenth test  |    11 |
++-------+-------------+-------+
+2 rows in set (0.00 sec)
+
+mysql> RENAME TABLE t1 TO t2;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> SELECT * FROM t2;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     4 | second test |    43 |
+|     4 | tenth test  |    11 |
++-------+-------------+-------+
+2 rows in set (0.00 sec)
+
+mysql> DROP TABLE t2;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> 
+
+=============================================================================
+Listing 10-XX:   Stage 5
+=============================================================================
+
+mysql> INSTALL PLUGIN spartan SONAME 'ha_spartan.so';
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> use test;
+Database changed
+mysql> CREATE TABLE t1 (col_a int, col_b varchar(20), col_c int) ENGINE=SPARTAN;
+Query OK, 0 rows affected (0.04 sec)
+
+mysql> INSERT INTO t1 VALUES (1, "first test", 24);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (2, "second test", 43);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (9, "fourth test", -2);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (3, 'eighth test', -22);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (4, "tenth test", 11);
+Query OK, 1 row affected (0.01 sec)
+
+mysql> INSERT INTO t1 VALUES (8, "seventh test", 20);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (5, "third test", 100);
+Query OK, 1 row affected (0.01 sec)
+
+mysql> SELECT * FROM t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     1 | first test   |    24 |
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     3 | eighth test  |   -22 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
+|     5 | third test   |   100 |
++-------+--------------+-------+
+7 rows in set (0.00 sec)
+
+mysql> UPDATE t1 SET col_b = "Updated!" WHERE col_a = 1;
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+mysql> SELECT * from t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     1 | Updated!     |    24 |
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     3 | eighth test  |   -22 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
+|     5 | third test   |   100 |
++-------+--------------+-------+
+7 rows in set (0.00 sec)
+
+mysql> UPDATE t1 SET col_b = "Updated!" WHERE col_a = 3;
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+mysql> SELECT * from t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     1 | Updated!     |    24 |
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     3 | Updated!     |   -22 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
+|     5 | third test   |   100 |
++-------+--------------+-------+
+7 rows in set (0.01 sec)
+
+mysql> UPDATE t1 SET col_b = "Updated!" WHERE col_a = 5;
+Query OK, 1 row affected (0.01 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+mysql> SELECT * from t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     1 | Updated!     |    24 |
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     3 | Updated!     |   -22 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
+|     5 | Updated!     |   100 |
++-------+--------------+-------+
+7 rows in set (0.00 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 1;
+Query OK, 1 row affected (0.01 sec)
+
+mysql> SELECT * FROM t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     3 | Updated!     |   -22 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
+|     5 | Updated!     |   100 |
++-------+--------------+-------+
+6 rows in set (0.00 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 3;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
+|     5 | Updated!     |   100 |
++-------+--------------+-------+
+5 rows in set (0.01 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 5;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
++-------+--------------+-------+
+4 rows in set (0.00 sec)
+
+mysql> SELECT * FROM t1 WHERE col_a = 4;
++-------+------------+-------+
+| col_a | col_b      | col_c |
++-------+------------+-------+
+|     4 | tenth test |    11 |
++-------+------------+-------+
+1 row in set (0.01 sec)
+
+mysql> SELECT * FROM t1 WHERE col_a >= 2 AND col_a <= 5;
++-------+-------------+-------+
+| col_a | col_b       | col_c |
++-------+-------------+-------+
+|     2 | second test |    43 |
+|     4 | tenth test  |    11 |
++-------+-------------+-------+
+2 rows in set (0.00 sec)
+
+mysql> SELECT * FROM t1 WHERE col_a = 22;
+Empty set (0.01 sec)
+
+mysql> DELETE FROM t1 WHERE col_a = 5;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> SELECT * FROM t1;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     4 | tenth test   |    11 |
+|     8 | seventh test |    20 |
++-------+--------------+-------+
+4 rows in set (0.00 sec)
+
+mysql> SELECT * FROM t1 WHERE col_a = 5;
+Empty set (0.00 sec)
+
+mysql> UPDATE t1 SET col_a = 99 WHERE col_a = 8;
+Query OK, 1 row affected (0.00 sec)
+Rows matched: 1  Changed: 1  Warnings: 0
+
+mysql> SELECT * FROM t1 WHERE col_a = 8;
+Empty set (0.01 sec)
+
+mysql> SELECT * FROM t1 WHERE col_a = 99;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|    99 | seventh test |    20 |
++-------+--------------+-------+
+1 row in set (0.00 sec)
+
+mysql> RENAME TABLE t1 TO t2;
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> SELECT * FROM t2;
++-------+--------------+-------+
+| col_a | col_b        | col_c |
++-------+--------------+-------+
+|     2 | second test  |    43 |
+|     9 | fourth test  |    -2 |
+|     4 | tenth test   |    11 |
+|    99 | seventh test |    20 |
++-------+--------------+-------+
+4 rows in set (0.01 sec)
+
+mysql> DROP TABLE t2;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql>

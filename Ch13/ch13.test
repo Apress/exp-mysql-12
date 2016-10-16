@@ -1,0 +1,21 @@
+#
+# Sample test to test the DBXP_SELECT optimizer
+#
+
+--source include/ch13.sql
+
+# Test 1:
+DBXP_SELECT * FROM staff;
+
+# Test 2:
+DBXP_SELECT id FROM staff WHERE staff.id = '123456789';
+
+# Test 3:
+DBXP_SELECT id, dir_name FROM staff, directorate
+WHERE staff.mgr_id = directorate.dir_head_id;
+
+# Test 4:
+DBXP_SELECT * FROM staff JOIN tasking ON staff.id = tasking.id
+WHERE staff.id = '123456789';
+
+DROP DATABASE expert_mysql;

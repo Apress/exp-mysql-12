@@ -1,0 +1,125 @@
+
+mysql> DBXP_SELECT first_name, last_name, sex, id FROM staf' at line 1
++------------+------------+------+-----------+
+| first_name | last_name  | sex  | id        |
++------------+------------+------+-----------+
+| John       | Smith      | M    | 333445555 |
+| William    | Walters    | M    | 123763153 |
+| Alicia     | St.Cruz    | F    | 333444444 |
+| Goy        | Hong       | F    | 921312388 |
+| Rajesh     | Kardakarna | M    | 800122337 |
+| Monty      | Smythe     | M    | 820123637 |
+| Richard    | Jones      | M    | 830132335 |
+| Edward     | Engles     | M    | 333445665 |
+| Beware     | Borg       | F    | 123654321 |
+| Wilma      | Maxima     | F    | 123456789 |
++------------+------------+------+-----------+
+10 rows in set (0.01 sec)
+
+mysql> DBXP_SELECT id FROM staff;
++-----------+
+| id        |
++-----------+
+| 333445555 |
+| 123763153 |
+| 333444444 |
+| 921312388 |
+| 800122337 |
+| 820123637 |
+| 830132335 |
+| 333445665 |
+| 123654321 |
+| 123456789 |
++-----------+
+10 rows in set (0.00 sec)
+
+mysql> DBXP_SELECT dir_name FROM directorate;
++-----------------+
+| dir_name        |
++-----------------+
+| Development     |
+| Human Resources |
+| Management      |
++-----------------+
+3 rows in set (0.00 sec)
+
+mysql> DBXP_SELECT id, dir_name FROM staff 
+JOIN directorate ON staff.mgr_id = directorate.dir_head_id;
++-----------+-----------------+
+| id        | dir_name        |
++-----------+-----------------+
+| 123763153 | Human Resources |
+| 921312388 | Human Resources |
+| 333445555 | Management      |
+| 123654321 | Management      |
+| 800122337 | Development     |
+| 820123637 | Development     |
+| 830132335 | Development     |
+| 333445665 | Development     |
+| 123456789 | Development     |
++-----------+-----------------+
+9 rows in set (0.00 sec)
+
+mysql> DBXP_SELECT id, dir_name FROM staff, directorate  
+WHERE staff.mgr_id = directorate.dir_head_id;
++-----------+-----------------+
+| id        | dir_name        |
++-----------+-----------------+
+| 123763153 | Human Resources |
+| 921312388 | Human Resources |
+| 333445555 | Management      |
+| 123654321 | Management      |
+| 800122337 | Development     |
+| 820123637 | Development     |
+| 830132335 | Development     |
+| 333445665 | Development     |
+| 123456789 | Development     |
++-----------+-----------------+
+9 rows in set (0.00 sec)
+
+mysql> DBXP_SELECT * FROM staff WHERE staff.id = '123456789';
++-----------+------------+----------+-----------+------+--------+-----------+
+| id        | first_name | mid_name | last_name | sex  | salary | mgr_id    |
++-----------+------------+----------+-----------+------+--------+-----------+
+| 123456789 | Wilma      | N        | Maxima    | F    |  43000 | 333445555 |
++-----------+------------+----------+-----------+------+--------+-----------+
+1 row in set (0.00 sec)
+
+mysql> DBXP_SELECT first_name, last_name FROM staff join directorate ON staff.mgr_id = directorate.dir_head_id WHERE directorate.dir_code = 'N41';
++------------+------------+
+| first_name | last_name  |
++------------+------------+
+| Rajesh     | Kardakarna |
+| Monty      | Smythe     |
+| Richard    | Jones      |
+| Edward     | Engles     |
+| Wilma      | Maxima     |
++------------+------------+
+5 rows in set (0.00 sec)
+
+mysql> DBXP_SELECT * FROM directorate JOIN building ON directorate.dir_code = building.dir_code;
++----------+-----------------+-------------+----------+----------+
+| dir_code | dir_name        | dir_head_id | dir_code | building |
++----------+-----------------+-------------+----------+----------+
+| M00      | Management      | 333444444   | M00      | 1000     |
+| N01      | Human Resources | 123654321   | N01      | 1453     |
+| N41      | Development     | 333445555   | N41      | 1300     |
+| N41      | Development     | 333445555   | N41      | 1301     |
+| N41      | Development     | 333445555   | N41      | 1305     |
++----------+-----------------+-------------+----------+----------+
+5 rows in set (0.00 sec)
+
+mysql> DBXP_SELECT directorate.dir_code, dir_name, building, dir_head_id 
+FROM directorate JOIN building ON directorate.dir_code = building.dir_code;
++----------+-----------------+----------+-------------+
+| dir_code | dir_name        | building | dir_head_id |
++----------+-----------------+----------+-------------+
+| M00      | Management      | 1000     | 333444444   |
+| N01      | Human Resources | 1453     | 123654321   |
+| N41      | Development     | 1300     | 333445555   |
+| N41      | Development     | 1301     | 333445555   |
+| N41      | Development     | 1305     | 333445555   |
++----------+-----------------+----------+-------------+
+5 rows in set (0.00 sec)
+
+mysql> 

@@ -1,0 +1,38 @@
+#
+# Sample test to demonstrate MySQL Test Suite
+#
+--disable_warnings
+SHOW DATABASES;
+--enable_warnings
+CREATE TABLE characters (ID INTEGER PRIMARY KEY,
+                      LastName varchar(40),
+                      FirstName varchar(20),
+                      Gender varchar(2)) ENGINE=MYISAM;
+EXPLAIN characters;
+#
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (3, 'Flintstone', 'Fred', 'M');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (5, 'Rubble', 'Barney', 'M');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (7, 'Flintstone', 'Wilma', 'F');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (9, 'Flintstone', 'Dino', 'M');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (4, 'Flintstone', 'Pebbles', 'F');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (1, 'Rubble', 'Betty', 'F');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (6, 'Rubble', 'Bam-Bam', 'M');
+INSERT INTO characters (ID, LastName, FirstName, Gender)
+             VALUES (8, 'Jetson', 'George', 'M');
+#
+SELECT * FROM characters;
+#
+EXPLAIN (SELECT DISTINCT LASTNAME from characters);
+#
+SELECT DISTINCT LASTNAME from characters;
+#
+# Cleanup
+#
+DROP TABLE characters;

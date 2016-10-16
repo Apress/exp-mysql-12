@@ -1,0 +1,139 @@
+=== modified file 'sql/item_create.cc'
+--- sql/item_create.cc	2012-06-28 10:46:42 +0000
++++ sql/item_create.cc	2012-08-14 13:58:16 +0000
+@@ -2009,6 +2009,21 @@ protected:
+   virtual ~Create_func_quote() {}
+ };
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add gregorian class definition */
++class Create_func_gregorian : public Create_func_arg1
++{
++public:
++  virtual Item *create(THD *thd, Item *arg1);
++
++  static Create_func_gregorian s_singleton;
++
++protected:
++  Create_func_gregorian() {}
++  virtual ~Create_func_gregorian() {}
++};
++/* END CAB MODIFICATION */
+ 
+ class Create_func_radians : public Create_func_arg1
+ {
+@@ -4762,6 +4777,17 @@ Create_func_quote::create(THD *thd, Item
+   return new (thd->mem_root) Item_func_quote(arg1);
+ }
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add gregorian singleton create method */
++Create_func_gregorian Create_func_gregorian::s_singleton;
++
++Item*
++Create_func_gregorian::create(THD *thd, Item *arg1)
++{
++  return new (thd->mem_root) Item_func_gregorian(arg1);
++}
++/* END CAB MODIFICATION */
+ 
+ Create_func_radians Create_func_radians::s_singleton;
+ 
+@@ -5547,6 +5573,11 @@ static Native_func_registry func_array[]
+   { { C_STRING_WITH_LEN("POW") }, BUILDER(Create_func_pow)},
+   { { C_STRING_WITH_LEN("POWER") }, BUILDER(Create_func_pow)},
+   { { C_STRING_WITH_LEN("QUOTE") }, BUILDER(Create_func_quote)},
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add gregorian symbol */
++  { { C_STRING_WITH_LEN("GREGORIAN") }, BUILDER(Create_func_gregorian)},
++/* END CAB MODIFICATION */
+   { { C_STRING_WITH_LEN("RADIANS") }, BUILDER(Create_func_radians)},
+   { { C_STRING_WITH_LEN("RAND") }, BUILDER(Create_func_rand)},
+   { { C_STRING_WITH_LEN("RELEASE_LOCK") }, BUILDER(Create_func_release_lock)},
+
+=== modified file 'sql/item_strfunc.cc'
+--- sql/item_strfunc.cc	2012-06-11 11:30:25 +0000
++++ sql/item_strfunc.cc	2012-08-14 13:58:16 +0000
+@@ -4031,6 +4031,50 @@ null:
+   return 0;
+ }
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add gregorian function code */
++String *Item_func_gregorian::val_str(String *str)
++{
++  static int DAYS_IN_MONTH[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
++  longlong jdate = args[0]->val_int();
++  int year = 0;
++  int month = 0;
++  int day = 0;
++  int i;
++  char cstr[30];
++  cstr[0] = 0;
++  str->length(0);
++
++  /* get date from value (right 4 digits */
++  year = jdate - ((jdate / 10000) * 10000);
++
++  /* get value for day of year and find current month*/
++  day = (jdate - year) / 10000;
++  for (i = 0; i < 12; i++)
++    if (DAYS_IN_MONTH[i] < day)
++      day = day - DAYS_IN_MONTH[i]; /* remainder is day of current month */
++    else
++    {
++      month = i + 1;
++      break;
++    }
++
++  /* format date string */
++  sprintf(cstr, "%d", month);
++  str->append(cstr);
++  str->append("/");
++  sprintf(cstr, "%d", day);
++  str->append(cstr);
++  str->append("/");
++  sprintf(cstr, "%d", year);
++  str->append(cstr);
++  if (null_value)
++    return 0;
++  return str;
++} 
++/* END CAB MODIFICATION */
++
+ longlong Item_func_uncompressed_length::val_int()
+ {
+   DBUG_ASSERT(fixed == 1);
+
+=== modified file 'sql/item_strfunc.h'
+--- sql/item_strfunc.h	2012-07-06 15:16:34 +0000
++++ sql/item_strfunc.h	2012-08-14 13:58:16 +0000
+@@ -847,6 +847,23 @@ public:
+   }
+ };
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add gregorian Item function code */
++class Item_func_gregorian :public Item_str_func
++{
++  String tmp_value;
++public:
++  Item_func_gregorian(Item *a) :Item_str_func(a) {}
++  const char *func_name() const { return "gregorian"; }
++  String *val_str(String *);
++  void fix_length_and_dec()
++  {
++   max_length=30;
++  }
++};
++/* END CAB MODIFICATION */
++
+ class Item_func_conv_charset :public Item_str_func
+ {
+   bool use_cached_value;
+

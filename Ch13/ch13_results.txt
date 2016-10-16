@@ -1,0 +1,172 @@
+mysql> explain dbxp_select * from staff;
++--------------------------+
+| Execution Path           |
++--------------------------+
+|      expert_mysql.staff  |
+|           |              |
+|           |              |
+|           |              |
+|           V              |
+|      ------------------- |
+|      |     PROJECT     | |
+|      ------------------- |
+|      | Access Method:  | |
+|      |    iterator     | |
+|      ------------------- |
+|              |           |
+|              |           |
+|              V           |
+|          Result Set      |
++--------------------------+
+15 rows in set (0.00 sec)
+
+mysql> explain dbxp_select id FROM staff WHERE staff.id = '123456789';
++--------------------------+
+| Execution Path           |
++--------------------------+
+|      expert_mysql.staff  |
+|           |              |
+|           |              |
+|           |              |
+|           V              |
+|      ------------------- |
+|      |    RESTRICT     | |
+|      ------------------- |
+|      | Access Method:  | |
+|      |    iterator     | |
+|      ------------------- |
+|           |              |
+|           |              |
+|           |              |
+|           V              |
+|      ------------------- |
+|      |     PROJECT     | |
+|      ------------------- |
+|      | Access Method:  | |
+|      |    iterator     | |
+|      ------------------- |
+|              |           |
+|              |           |
+|              V           |
+|          Result Set      |
++--------------------------+
+25 rows in set (0.00 sec)
+
+mysql> explain dbxp_select id, dir_name FROM staff, directorate WHERE staff.dno = directorate.dnumber;
+ERROR 1054 (42S22): Unknown column 'directorate.dnumber' in 'field list'
+mysql> explain dbxp_select id, dir_name FROM staff, directorate WHERE staff.dno = directorate.d;
+ERROR 1054 (42S22): Unknown column 'directorate.d' in 'field list'
+mysql> explain directorate
+    -> ;
++-------------+----------+------+-----+---------+-------+
+| Field       | Type     | Null | Key | Default | Extra |
++-------------+----------+------+-----+---------+-------+
+| dir_code    | char(4)  | NO   | PRI | NULL    |       |
+| dir_name    | char(30) | YES  |     | NULL    |       |
+| dir_head_id | char(9)  | YES  |     | NULL    |       |
++-------------+----------+------+-----+---------+-------+
+3 rows in set (0.00 sec)
+
+mysql> explain dbxp_select id, dir_name FROM staff, directorate WHERE staff.dno = directorate.dir_code;
+ERROR 1054 (42S22): Unknown column 'staff.dno' in 'field list'
+mysql> explain dbxp_select id, dir_name FROM staff, directorate WHERE staff.dno = directorate.dir_code;
+ERROR 1054 (42S22): Unknown column 'staff.dno' in 'field list'
+mysql> explain staff;
++------------+----------+------+-----+---------+-------+
+| Field      | Type     | Null | Key | Default | Extra |
++------------+----------+------+-----+---------+-------+
+| id         | char(9)  | NO   | PRI | NULL    |       |
+| first_name | char(20) | YES  |     | NULL    |       |
+| mid_name   | char(20) | YES  |     | NULL    |       |
+| last_name  | char(30) | YES  |     | NULL    |       |
+| sex        | char(1)  | YES  |     | NULL    |       |
+| salary     | int(11)  | YES  |     | NULL    |       |
+| mgr_id     | char(9)  | YES  |     | NULL    |       |
++------------+----------+------+-----+---------+-------+
+7 rows in set (0.00 sec)
+
+mysql> explain dbxp_select id, dir_name FROM staff, directorate WHERE staff.mgr_id = directorate.dir_code;
++----------------------------------------------------+
+| Execution Path                                     |
++----------------------------------------------------+
+|      expert_mysql.staff                            |
+|           |                                        |
+|           |                                        |
+|           |                                        |
+|           V                                        |
+|      -------------------                           |
+|      |     PROJECT     |                           |
+|      -------------------                           |
+|      | Access Method:  |                           |
+|      |    iterator     |                           |
+|      -------------------                           |
+|           |               expert_mysql.directorate |
+|           |                    |                   |
+|           |                    |                   |
+|           |                    |                   |
+|           |                    V                   |
+|           |               -------------------      |
+|           |               |     PROJECT     |      |
+|           |               -------------------      |
+|           |               | Access Method:  |      |
+|           |               |    iterator     |      |
+|           |               -------------------      |
+|           |                              |         |
+|           |   ----------------------------         |
+|           |   |                                    |
+|           V   V                                    |
+|      -------------------                           |
+|      |      JOIN       |                           |
+|      -------------------                           |
+|      | Access Method:  |                           |
+|      |    iterator     |                           |
+|      -------------------                           |
+|              |                                     |
+|              |                                     |
+|              V                                     |
+|          Result Set                                |
++----------------------------------------------------+
+36 rows in set (0.00 sec)
+
+mysql> explain dbxp_select FROM staff JOIN tasking ON staff.id = tasking.id WHERE staff.id = '123456789';
++------------------------------------------------+
+| Execution Path                                 |
++------------------------------------------------+
+|      expert_mysql.staff                        |
+|           |                                    |
+|           |                                    |
+|           |                                    |
+|           V                                    |
+|      -------------------                       |
+|      |    RESTRICT     |                       |
+|      -------------------                       |
+|      | Access Method:  |                       |
+|      |    iterator     |                       |
+|      -------------------                       |
+|           |               expert_mysql.tasking |
+|           |                    |               |
+|           |                    |               |
+|           |                    |               |
+|           |                    V               |
+|           |               -------------------  |
+|           |               |     PROJECT     |  |
+|           |               -------------------  |
+|           |               | Access Method:  |  |
+|           |               |    iterator     |  |
+|           |               -------------------  |
+|           |                              |     |
+|           |   ----------------------------     |
+|           |   |                                |
+|           V   V                                |
+|      -------------------                       |
+|      |      JOIN       |                       |
+|      -------------------                       |
+|      | Access Method:  |                       |
+|      |    iterator     |                       |
+|      -------------------                       |
+|              |                                 |
+|              |                                 |
+|              V                                 |
+|          Result Set                            |
++------------------------------------------------+
+36 rows in set (0.00 sec)

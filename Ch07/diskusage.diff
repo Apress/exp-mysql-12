@@ -1,0 +1,194 @@
+=== modified file 'sql/lex.h'
+--- sql/lex.h	2012-05-03 08:35:47 +0000
++++ sql/lex.h	2012-08-14 16:09:27 +0000
+@@ -181,6 +181,11 @@ static SYMBOL symbols[] = {
+   { "DISABLE",		SYM(DISABLE_SYM)},
+   { "DISCARD",		SYM(DISCARD)},
+   { "DISK",		SYM(DISK_SYM)},
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add disk usage symbol */
++  { "DISK_USAGE",           SYM(DISK_USAGE_SYM)},
++/* END CAB MODIFICATION */
+   { "DISTINCT",		SYM(DISTINCT)},
+   { "DISTINCTROW",	SYM(DISTINCT)},	/* Access likes this */
+   { "DIV",		SYM(DIV_SYM)},
+
+=== modified file 'sql/sql_cmd.h'
+--- sql/sql_cmd.h	2012-05-28 09:09:33 +0000
++++ sql/sql_cmd.h	2012-08-14 16:09:27 +0000
+@@ -62,7 +62,11 @@ enum enum_sql_command {
+   SQLCOM_SHOW_SLAVE_HOSTS, SQLCOM_DELETE_MULTI, SQLCOM_UPDATE_MULTI,
+   SQLCOM_SHOW_BINLOG_EVENTS, SQLCOM_DO,
+   SQLCOM_SHOW_WARNS, SQLCOM_EMPTY_QUERY, SQLCOM_SHOW_ERRORS,
+-  SQLCOM_SHOW_STORAGE_ENGINES, SQLCOM_SHOW_PRIVILEGES,
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add SQLCOM_SHOW_DISK_USAGE reference */
++  SQLCOM_SHOW_STORAGE_ENGINES, SQLCOM_SHOW_PRIVILEGES, SQLCOM_SHOW_DISK_USAGE,
++/* END CAB MODIFICATION */
+   SQLCOM_HELP, SQLCOM_CREATE_USER, SQLCOM_DROP_USER, SQLCOM_RENAME_USER,
+   SQLCOM_REVOKE_ALL, SQLCOM_CHECKSUM,
+   SQLCOM_CREATE_PROCEDURE, SQLCOM_CREATE_SPFUNCTION, SQLCOM_CALL,
+
+=== modified file 'sql/sql_parse.cc'
+--- sql/sql_parse.cc	2012-07-05 10:07:26 +0000
++++ sql/sql_parse.cc	2012-08-14 16:09:27 +0000
+@@ -3542,6 +3542,13 @@ end_with_restore_list:
+   case SQLCOM_SHOW_AUTHORS:
+     res= mysqld_show_authors(thd);
+     break;
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add SQLCOM_SHOW_DISK_USAGE case statement */
++  case SQLCOM_SHOW_DISK_USAGE:
++    res = show_disk_usage_command(thd);
++    break;
++/* END CAB MODIFICATION */
+   case SQLCOM_SHOW_CONTRIBUTORS:
+     res= mysqld_show_contributors(thd);
+     break;
+
+=== modified file 'sql/sql_show.cc'
+--- sql/sql_show.cc	2012-07-10 14:32:03 +0000
++++ sql/sql_show.cc	2012-08-14 17:24:19 +0000
+@@ -280,6 +280,89 @@ bool mysqld_show_authors(THD *thd)
+ }
+ 
+ 
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add show disk usage method */
++bool show_disk_usage_command(THD *thd)
++{
++  List<Item> field_list;
++  List<LEX_STRING> dbs;
++  LEX_STRING *db_name;
++  char *path;
++  MY_DIR *dirp;
++  FILEINFO *file;
++  longlong fsizes = 0;
++  longlong lsizes = 0;
++  Protocol *protocol= thd->protocol;
++  DBUG_ENTER("show_disk_usage");
++
++  /* send the fields "Database" and "Size" */
++  field_list.push_back(new Item_empty_string("Database",50));
++  field_list.push_back(new Item_return_int("Size (Kb)", 7, MYSQL_TYPE_LONG));
++  if (protocol->send_result_set_metadata(&field_list,
++                                         Protocol::SEND_NUM_ROWS |
++                                         Protocol::SEND_EOF))
++    DBUG_RETURN(TRUE);
++
++  /* get database directories */
++  find_files_result res = find_files(thd, &dbs, 0, mysql_data_home, 0, 1);
++  if (res != FIND_FILES_OK)
++    DBUG_RETURN(1);
++    
++  List_iterator_fast<LEX_STRING> it_dbs(dbs);
++  path = (char *)my_malloc(PATH_MAX, MYF(MY_ZEROFILL));
++  dirp = my_dir(mysql_data_home, MYF(MY_WANT_STAT));
++  fsizes = 0;
++  for (int i = 0; i < (int)dirp->number_off_files; i++)
++  {
++    file = dirp->dir_entry + i;
++    if (strncasecmp(file->name, "ibdata", 6) == 0)
++      fsizes = fsizes + file->mystat->st_size;
++    else if (strncasecmp(file->name, "ib", 2) == 0)
++      lsizes = lsizes + file->mystat->st_size;
++  }
++
++  /* send InnoDB data to client */
++  protocol->prepare_for_resend();
++  protocol->store("InnoDB TableSpace", system_charset_info);
++  protocol->store((longlong)fsizes);
++  if (protocol->write())
++    DBUG_RETURN(TRUE);
++  protocol->prepare_for_resend();
++  protocol->store("InnoDB Logs", system_charset_info);
++  protocol->store((longlong)lsizes);
++  if (protocol->write())
++    DBUG_RETURN(TRUE);
++
++  /* now send database name and sizes of the databases */
++  while ((db_name = it_dbs++))
++  {
++    fsizes = 0;
++    strcpy(path, mysql_data_home);
++    strcat(path, "/");
++    strcat(path, db_name->str);
++    dirp = my_dir(path, MYF(MY_WANT_STAT));
++    for (int i = 0; i < (int)dirp->number_off_files; i++)
++    {
++      file = dirp->dir_entry + i;
++      fsizes = fsizes + file->mystat->st_size;
++    }
++
++    protocol->prepare_for_resend();
++    protocol->store(db_name->str, system_charset_info);
++    protocol->store((longlong)fsizes);
++    if (protocol->write())
++      DBUG_RETURN(TRUE);
++  }
++  my_eof(thd);
++
++  /* free memory */
++  my_free(path);
++  DBUG_RETURN(FALSE);
++ }
++
++/* END CAB MODIFICATION */
++ 
+ /***************************************************************************
+ ** List all Contributors.
+ ** Please get permission before updating
+
+=== modified file 'sql/sql_show.h'
+--- sql/sql_show.h	2012-05-16 06:42:17 +0000
++++ sql/sql_show.h	2012-08-14 16:09:27 +0000
+@@ -179,6 +179,11 @@ int mysqld_show_status(THD *thd);
+ int mysqld_show_variables(THD *thd,const char *wild);
+ bool mysqld_show_storage_engines(THD *thd);
+ bool mysqld_show_authors(THD *thd);
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add show disk usage method reference */
++bool show_disk_usage_command(THD *thd);
++/* END CAB MODIFICATION */
+ bool mysqld_show_contributors(THD *thd);
+ bool mysqld_show_privileges(THD *thd);
+ char *make_backup_log_name(char *buff, const char *name, const char* log_ext);
+
+=== modified file 'sql/sql_yacc.yy'
+--- sql/sql_yacc.yy	2012-07-13 08:50:05 +0000
++++ sql/sql_yacc.yy	2012-08-14 16:09:27 +0000
+@@ -1145,6 +1145,11 @@ bool my_yyoverflow(short **a, YYSTYPE **
+ %token  DISABLE_SYM
+ %token  DISCARD
+ %token  DISK_SYM
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add DISK_USAGE symbol */
++%token  DISK_USAGE_SYM
++/* END CAB MODIFICATION */
+ %token  DISTINCT                      /* SQL-2003-R */
+ %token  DIV_SYM
+ %token  DOUBLE_SYM                    /* SQL-2003-R */
+@@ -12279,6 +12284,16 @@ opt_profile_args:
+ /* Show things */
+ 
+ show:
++/* BEGIN CAB MODIFICATION */
++/* Reason for Modification: */
++/* Add show disk usage symbol parsing */
++        SHOW DISK_USAGE_SYM
++           {
++               LEX *lex=Lex;
++               lex->sql_command= SQLCOM_SHOW_DISK_USAGE;
++          }
++         |
++/* END CAB MODIFICATION */
+           SHOW
+           {
+             LEX *lex=Lex;
+
