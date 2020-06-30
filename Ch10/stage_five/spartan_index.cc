@@ -179,6 +179,7 @@ SDE_INDEX *Spartan_index::read_row(long long Position)
   DBUG_RETURN(ndx);
 }
 
+
 /* insert a key into the index in memory */
 int Spartan_index::insert_key(SDE_INDEX *ndx, bool allow_dupes)
 {
@@ -395,6 +396,7 @@ uchar *Spartan_index::get_first_key()
   {
     key = (uchar *)my_malloc(max_key_len, MYF(MY_ZEROFILL | MY_WME));
     memcpy(key, n->key_ndx.key, n->key_ndx.length);
+    range_ptr = n->next;
   }
   DBUG_RETURN(key);
 }
